@@ -241,10 +241,30 @@
 			
 			ctx.save();
 
+			// background
 			ctx.fillStyle = '#1661ff';
-			ctx.fillRect(0, 0, this.width, this.height);
+			ctx.fillRect(0, 0, this.width, this.height);		
 
+			// north pole biome
+			ctx.beginPath();
+			ctx.ellipse(W/2, 0, W/4, H*0.1, 0, 0, 1*Math.PI);
+			ctx.fillStyle = '#f3feff';
+			ctx.fill();		
 
+			// south pole biome
+			ctx.beginPath();
+			ctx.ellipse(W/2, H, W/2, H*0.1, 0, 1*Math.PI, 2*Math.PI);
+			ctx.fillStyle = '#f3feff';
+			ctx.fill();	
+			
+			ctx.restore();
+			
+			// store the generate map as this image texture
+			this.image = new Image();
+			this.image.src = canvas.toDataURL("image/png");	
+			
+			ctx.save();
+			
 			// green fields biome of circle 1
 			ctx.beginPath();
 			ctx.arc(W*0.275, H/2, W*0.20, 1.95*Math.PI, 1.05*Math.PI);			
@@ -273,23 +293,12 @@
 			ctx.beginPath();
 			ctx.arc(W/2, H/2, W*0.12, 0, 2*Math.PI);
 			ctx.fillStyle = '#949494';
-			ctx.fill();		
-
-			// north pole biome
-			ctx.beginPath();
-			ctx.ellipse(W/2, 0, W/4, H*0.1, 0, 0, 1*Math.PI);
-			ctx.fillStyle = '#f3feff';
-			ctx.fill();		
-
-			// south pole biome
-			ctx.beginPath();
-			ctx.ellipse(W/2, H, W/2, H*0.1, 0, 1*Math.PI, 2*Math.PI);
-			ctx.fillStyle = '#f3feff';
-			ctx.fill();									
+			ctx.fill();
 			
-			// store the generate map as this image texture
-			this.image = new Image();
-			this.image.src = canvas.toDataURL("image/png");					
+			ctx.restore();
+
+			this.image2 = new Image();
+			this.image2.src = canvas.toDataURL("image/png2");	
 			
 			// clear context
 			ctx = null;
@@ -324,7 +333,8 @@
 			dWidth = sWidth;
 			dHeight = sHeight;									
 			
-			context.drawImage(this.image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight);			
+			context.drawImage(this.image, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight);	
+			context.drawImage(this.image2, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight);		
 		}
 		
 		// add "class" Map to our Game object

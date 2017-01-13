@@ -170,7 +170,7 @@
 			this.y = y;				
 			
 			// move speed in pixels per second
-			this.speed = 200;		
+			this.speed = 20;		
 			
 			// render properties
 			this.width = 50;
@@ -182,13 +182,13 @@
 			
 			// check controls and move the player accordingly
 			if(Game.controls.left)
-				this.x -= this.speed * step;
+				this.x -= this.speed;
 			if(Game.controls.up)
-				this.y -= this.speed * step;
+				this.y -= this.speed;
 			if(Game.controls.right)
-				this.x += this.speed * step;
+				this.x += this.speed;
 			if(Game.controls.down)
-				this.y += this.speed * step;		
+				this.y += this.speed;		
 			
 			// don't let player leaves the world's boundary
 			if(this.x - this.width/2 < 0){
@@ -206,10 +206,8 @@
 		}
 		
 		Player.prototype.draw = function(context, xView, yView){		
-			// draw a simple rectangle shape as our player model
 			context.save();		
-			context.fillStyle = "black";
-			// before draw we need to convert player world's position to canvas position			
+			context.fillStyle = "black";		
 			context.fillRect((this.x-this.width/2) - xView, (this.y-this.height/2) - yView, this.width, this.height);
 			context.restore();			
 		}
@@ -247,35 +245,47 @@
 			ctx.fillRect(0, 0, this.width, this.height);
 
 
-			// savanna biome of circle 1
+			// green fields biome of circle 1
 			ctx.beginPath();
-			ctx.arc(W*0.25, H/2, H*0.25, 1.95*Math.PI, 1.05*Math.PI);
-			ctx.fillStyle = '#dfff0a';
-			ctx.fill();	
-
-			// jungle biome of circle 1
-			ctx.beginPath();
-			ctx.arc(W*0.25, H/2, H*0.25, 1.05*Math.PI, 1.95*Math.PI);
-			ctx.fillStyle = '#118700';
-			ctx.fill();	
-
-			// green fields biome of circle 2
-			ctx.beginPath();
-			ctx.arc(W*0.75, H/2, H*0.25, 0.95*Math.PI, 2.05*Math.PI);
+			ctx.arc(W*0.275, H/2, W*0.20, 1.95*Math.PI, 1.05*Math.PI);			
 			ctx.fillStyle = '#0afa1b';
 			ctx.fill();	
 
-			// forest biome of circle 2
+			// forest biome of circle 1
 			ctx.beginPath();
-			ctx.arc(W*0.75, H/2, H*0.25, 2.05*Math.PI, 0.95*Math.PI);
+			ctx.arc(W*0.275, H/2, W*0.20, 1.05*Math.PI, 1.95*Math.PI);
 			ctx.fillStyle = '#04a20e';
 			ctx.fill();		
 
+			// savanna biome of circle 2
+			ctx.beginPath();
+			ctx.arc(W*0.725, H/2, W*0.20, 0.95*Math.PI, 2.05*Math.PI);
+			ctx.fillStyle = '#dfff0a';
+			ctx.fill();	
+
+			// jungle biome of circle 2
+			ctx.beginPath();
+			ctx.arc(W*0.725, H/2, W*0.20, 2.05*Math.PI, 0.95*Math.PI);
+			ctx.fillStyle = '#118700';
+			ctx.fill();	
+
 			// mountain biome
 			ctx.beginPath();
-			ctx.arc(W*0.5, H/2, H*0.175, 0, 2*Math.PI);
+			ctx.arc(W/2, H/2, W*0.12, 0, 2*Math.PI);
 			ctx.fillStyle = '#949494';
-			ctx.fill();					
+			ctx.fill();		
+
+			// north pole biome
+			ctx.beginPath();
+			ctx.ellipse(W/2, 0, W/4, H*0.1, 0, 0, 1*Math.PI);
+			ctx.fillStyle = '#f3feff';
+			ctx.fill();		
+
+			// south pole biome
+			ctx.beginPath();
+			ctx.ellipse(W/2, H, W/2, H*0.1, 0, 1*Math.PI, 2*Math.PI);
+			ctx.fillStyle = '#f3feff';
+			ctx.fill();									
 			
 			// store the generate map as this image texture
 			this.image = new Image();
@@ -287,11 +297,6 @@
 		
 		// draw the map adjusted to camera
 		Map.prototype.draw = function(context, xView, yView){					
-			// easiest way: draw the entire map changing only the destination coordinate in canvas
-			// canvas will cull the image by itself (no performance gaps -> in hardware accelerated environments, at least)
-			//context.drawImage(this.image, 0, 0, this.image.width, this.image.height, -xView, -yView, this.image.width, this.image.height);
-			
-			// didactic way:
 			
 			var sx, sy, dx, dy;
             var sWidth, sHeight, dWidth, dHeight;
@@ -343,9 +348,9 @@
 		
 		// setup an object that represents the room
 		var room = {
-			width: 10000,
-			height: 7000,
-			map: new Game.Map(10000, 7000)
+			width: 12000,
+			height: 9000,
+			map: new Game.Map(12000, 9000)
 		};
 		
 		// generate a large image texture for the room

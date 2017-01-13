@@ -20,6 +20,8 @@
 
 <canvas id='canvas'></canvas>
 
+<script src='http://code.jquery.com/jquery-latest.min.js'></script>
+
 <script type="text/javascript">
 	
 
@@ -163,53 +165,69 @@
 	// wrapper for "class" Player
 	(function(){
 		function Player(x, y){
-			// (x, y) = center of object
-			// ATTENTION:
-			// it represents the player position on the world(room), not the canvas position
+
 			this.x = x;
 			this.y = y;				
 			
-			// move speed in pixels per second
-			this.speed = 20;		
+			this.speed = 5;	
+
+			this.velX = 0;
+			this.velY = 0;	
 			
-			// render properties
-			this.width = 50;
-			this.height = 50;
+			this.r = 50;
+
+			this.rotation = 0;
+
+			this.image = new Image();
+			this.image.src = 'giraffe.png';
 		}
 		
-		Player.prototype.update = function(step, worldWidth, worldHeight){
-			// parameter step is the time between frames ( in seconds )
+		Player.prototype.update = function(worldWidth, worldHeight, xView, yView, mouseX, mouseY){
 			
-			// check controls and move the player accordingly
-			if(Game.controls.left)
-				this.x -= this.speed;
-			if(Game.controls.up)
-				this.y -= this.speed;
-			if(Game.controls.right)
-				this.x += this.speed;
-			if(Game.controls.down)
-				this.y += this.speed;		
+			this.rotation = Math.atan2(mouseX - ( this.x - xView ), -( mouseY - ( this.y - yView ) ));	
+
+			var xDistance = mouseX - ( this.x - xView );
+			var yDistance = mouseY - ( this.y - yView );
+
+			var distance = Math.sqrt(xDistance * xDistance + yDistance * yDistance);
+
+			if (distance > this.speed) {
+       			xDistance = xDistance * this.speed / distance;
+       			yDistance = yDistance * this.speed / distance;
+    		}
+
+			this.x += xDistance;
+			this.y += yDistance;		
 			
 			// don't let player leaves the world's boundary
-			if(this.x - this.width/2 < 0){
-				this.x = this.width/2;
+			if(this.x - this.r < 0){
+				this.x = this.r;
 			}
-			if(this.y - this.height/2 < 0){
-				this.y = this.height/2;
+			if(this.y - this.r < 0){
+				this.y = this.r;
 			}
-			if(this.x + this.width/2 > worldWidth){
-				this.x = worldWidth - this.width/2;
+			if(this.x + this.r > worldWidth){
+				this.x = worldWidth - this.r;
 			}
-			if(this.y + this.height/2 > worldHeight){
-				this.y = worldHeight - this.height/2;
+			if(this.y + this.r > worldHeight){
+				this.y = worldHeight - this.r;
 			}
 		}
 		
-		Player.prototype.draw = function(context, xView, yView){		
-			context.save();		
-			context.fillStyle = "black";		
-			context.fillRect((this.x-this.width/2) - xView, (this.y-this.height/2) - yView, this.width, this.height);
-			context.restore();			
+		Player.prototype.draw = function(ctx, xView, yView){		
+
+			var x = this.x - xView;
+			var y = this.y - yView;
+
+			ctx.save();
+
+			ctx.translate(x, y);
+			ctx.rotate(this.rotation);
+
+			ctx.drawImage(this.image, 0 - this.r, 0 - this.r, this.r * 2, this.r * 2);
+
+			ctx.restore();
+			
 		}
 		
 		// add "class" Player to our Game object
@@ -333,7 +351,7 @@
 	})();
 
 	// Game Script
-	(function(){
+	function game(){
 		// prepaire our game canvas
 		var canvas = document.getElementById("canvas");
 		var context = canvas.getContext("2d");
@@ -344,20 +362,22 @@
 		// game settings:	
 		var FPS = 30;
 		var INTERVAL = 1000/FPS; // milliseconds
-		var STEP = INTERVAL/1000 // seconds
 		
 		// setup an object that represents the room
 		var room = {
-			width: 12000,
-			height: 9000,
-			map: new Game.Map(12000, 9000)
+			width: 10000,
+			height: 7000,
+			map: new Game.Map(10000, 7000)
 		};
+
+		var mouseX = 0;
+		var mouseY = 0;
 		
 		// generate a large image texture for the room
 		room.map.generate();
 		 
 		// setup player
-		var player = new Game.Player(50, 50);
+		var player = new Game.Player( Math.floor((Math.random() * room.width) + 1), Math.floor((Math.random() * room.height) + 1) );
 		
 		// setup the magic camera !!!
 		var camera = new Game.Camera(0, 0, canvas.width, canvas.height, room.width, room.height);		
@@ -365,7 +385,7 @@
 		
 		// Game update function
 		var update = function(){			
-			player.update(STEP, room.width, room.height);
+			player.update(room.width, room.height, camera.xView, camera.yView, mouseX, mouseY);
 			camera.update();
 		}
 			
@@ -376,100 +396,31 @@
 			
 			// redraw all objects
 			room.map.draw(context, camera.xView, camera.yView);		
-			player.draw(context, camera.xView, camera.yView);		
+			player.draw(context, camera.xView, camera.yView);	
+
 		}
 		
 		// Game Loop
 		var gameLoop = function(){        				
 			update();
 			draw();
-		}	
-		
-		// <-- configure play/pause capabilities:
-		
-		// I'll use setInterval instead of requestAnimationFrame for compatibility reason,
-		// but it's easy to change that.
-		
-		var runningId = -1;
-		
-		Game.play = function(){	
-			if(runningId == -1){
-				runningId = setInterval(function(){
-					gameLoop();
-				}, INTERVAL);
-				console.log("play");
-			}
 		}
+
+		var int = setInterval(gameLoop, INTERVAL);
+
+		$(window).mousemove(function(event) {
+
+			mouseX = event.pageX;
+			mouseY = event.pageY;
+
+		});
 		
-		Game.togglePause = function(){		
-			if(runningId == -1){
-				Game.play();
-			}
-			else
-			{
-				clearInterval(runningId);
-				runningId = -1;
-				console.log("paused");
-			}
-		}	
-		
-		// -->
-		
-	})();
+	}
 
-	// <-- configure Game controls:
-
-	Game.controls = {
-		left: false,
-		up: false,
-		right: false,
-		down: false,
-	};
-
-	window.addEventListener("keydown", function(e){
-		switch(e.keyCode)
-		{
-			case 37: // left arrow
-				Game.controls.left = true;
-				break;
-			case 38: // up arrow
-				Game.controls.up = true;
-				break;
-			case 39: // right arrow
-				Game.controls.right = true;
-				break;
-			case 40: // down arrow
-				Game.controls.down = true;
-				break;
-		}
-	}, false);
-
-	window.addEventListener("keyup", function(e){
-		switch(e.keyCode)
-		{
-			case 37: // left arrow
-				Game.controls.left = false;
-				break;
-			case 38: // up arrow
-				Game.controls.up = false;
-				break;
-			case 39: // right arrow
-				Game.controls.right = false;
-				break;
-			case 40: // down arrow
-				Game.controls.down = false;
-				break;
-			case 80: // key P pauses the game
-				Game.togglePause();
-				break;		
-		}
-	}, false);
-
-	// -->
 
 	// start the game when page is loaded
 	window.onload = function(){	
-		Game.play();
+		game();
 	}
 
 

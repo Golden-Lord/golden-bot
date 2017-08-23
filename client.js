@@ -1,7 +1,7 @@
 var keyBinds = [87, 83, 65, 68, 81, 69, 32, 13];
 var keys = [];
 
-var W, H, player, world, canvas, ctx, trees, treesCount, camera;
+var W, H, player, world, canvas, ctx, trees, treesCount, camera, minimap;
 
 function initGame() {
 	$('#name').hide();
@@ -87,6 +87,11 @@ function Player(x, y, r, spd, color, name) {
 
 		this.velX *= 0.9;
 		this.velY *= 0.9;
+
+		if(this.x < 0) this.x = 0;
+		if(this.x > world.w - this.r) this.x = world.w - this.r;
+		if(this.y < 0) this.y = 0;
+		if(this.y > world.h - this.r) this.y = world.h - this.r;
 	}
 
 	this.render = function() {
@@ -127,21 +132,81 @@ function Camera(x, y) {
 	}
 }
 
+function Minimap(w, xoff, yoff) {
+	this.w = w;
+	this.h = world.h * this.w / world.w;
+
+	this.xoff = xoff;
+	this.yoff = yoff;
+
+	this.x = W - this.w - this.xoff;
+	this.y = H - this.h - this.yoff;
+
+	this.objects = [];
+
+	this.player = [this.x + player.x / (world.w / this.w), this.y + player.y / (world.h / this.h), player.r / 10];
+
+	this.generate = function(obj) {
+		for(var i = 0; i < obj.length; i++) {
+			this.objects.push([this.x + obj[i].x / (world.w / this.w), this.y + obj[i].y / (world.h / this.h), obj[i].r / 20]);
+		}
+	} 
+
+	this.update = function() {
+		this.player[0] = this.x + player.x / (world.w / this.w);
+		this.player[1] = this.y + player.y / (world.h / this.h);
+	}
+
+	this.render = function() {
+		ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+		ctx.fillRect(this.x, this.y, this.w, this.h);
+
+		for (var i = 0; i < this.objects.length; i++) {
+			ctx.beginPath();
+			ctx.arc(this.objects[i][0], this.objects[i][1], this.objects[i][2], 0, 2*Math.PI);
+			ctx.fillStyle = '#000000';
+			ctx.fill();
+		}
+
+		ctx.beginPath();
+		ctx.arc(this.player[0], this.player[1], this.player[2], 0, 2*Math.PI);
+		ctx.fillStyle = '#FFFFFF';
+		ctx.fill();
+	}
+}
+
+function World(w, h) {
+	this.w = w;
+	this.h = h;
+
+	this.render = function() {
+		if(camera.x < W) {
+			ctx.fillRect(-50 - player.r - camera.x, 0, 50, H);
+		}
+		if(camera.x > this.w - W) {
+			ctx.fillRect(this.w - camera.x, 0, 50, H);
+		}
+		if(camera.y < H) {
+			ctx.fillRect(0, -50 - player.r - camera.y, W, 50);
+		}
+		if(camera.y > this.h - H) {
+			ctx.fillRect(0, this.h - camera.y, W, 50);
+		}
+	}
+}
+
 function Game(c, n) {
 	console.log('Game Started');
 
 	canvas = c;
 	ctx = canvas.getContext("2d");
 
-	world = {
-		w: 5000,
-		h: 5000
-	}
+	world = new World(10000, 7000);
 
 	player = new Player(random(0, world.w), random(0, world.h), 20, 3, '#2135ED', n);
 
 	trees = [];
-	treesCount = 100;
+	treesCount = 150;
 	var treeMinSize = 35;
 	var treeMaxSize = 75;
 
@@ -151,12 +216,17 @@ function Game(c, n) {
 
 	camera = new Camera(0, 0);
 
+	minimap = new Minimap(250, 50, 50);
+
+	minimap.generate(trees);
+
 	gameLoop();
 }
 
 function update() {
 	player.update();
 	camera.update(player);
+	minimap.update();
 
 	for(var i = 0; i < treesCount; i++) {
 		if(isColliding(player, trees[i])) {
@@ -174,10 +244,16 @@ function update() {
 function render() {
 	ctx.clearRect(0, 0, W, H);
 
+	world.render();
+
+	minimap.render();
+
 	player.render();
 
 	for(var i = 0; i < treesCount; i++) {
-		trees[i].render();
+		if(trees[i].x > camera.x && trees[i].x < camera.x + W && trees[i].y > camera.y && trees[i].y < camera.y + H) {
+			trees[i].render();
+		}
 	}
 }
 

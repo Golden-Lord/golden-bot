@@ -1,5 +1,11 @@
 var keyBinds = [87, 83, 65, 68, 81, 69, 32, 13];
 var keys = [];
+var mouse = {
+	x: 0,
+	y: 0,
+	left: false,
+	right: false
+}
 
 var W, H, player, world, canvas, ctx, trees, treesCount, camera, minimap;
 
@@ -57,6 +63,70 @@ function distance(a, b) {
 function distanceSq(a, b) {
 	return Math.abs((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
 }
+function normalize(a, length) {
+	var nx = a.x / length;
+	var ny = a.y / length;
+	return {x: nx, y: ny};
+}
+
+function Hook(owner) {
+	this.x = 0;
+	this.y = 0;
+
+	this.owner = owner;
+
+	this.r = 5;
+
+	this.length = 0;
+	this.maxLength = 750;
+
+	this.speed = 0.5;
+
+	this.shooted = false;
+	this.hooked = false;
+	this.target = {
+		x: null,
+		y: null
+	}
+
+	this.update = function() {
+		if(this.shooted && !this.hooked) {
+			if(this.x < this.target.x) this.x += 10;
+			if(this.x > this.target.x) this.x -= 10;
+			if(this.y < this.target.y) this.y += 10;
+			if(this.y > this.target.y) this.y -= 10;		
+
+			this.length	= distance(this.owner, this);
+			if(this.length > this.maxLength) {
+				this.shooted = false;
+				this.hooked = false;
+				this.target.x = null;
+				this.target.y = null;
+				this.x = null;
+				this.y = null;
+			}
+		}
+		if(this.hooked) {
+			var angle = Math.atan2(this.x - this.owner.x, -(this.y - this.owner.y));
+			var vx = this.speed * Math.sin(angle);
+			var vy = this.speed * -Math.cos(angle);
+
+			this.owner.velX += vx;
+			this.owner.velY += vy;
+		}
+	}
+
+	this.render = function() {
+		if(this.shooted) {
+			ctx.beginPath();
+			ctx.moveTo(this.owner.x - camera.x, this.owner.y - camera.y);
+			ctx.lineTo(this.x - camera.x, this.y - camera.y);
+			ctx.strokeStyle = '#000000';
+			ctx.lineWidth = 5;
+			ctx.stroke();
+		}
+	}
+}
 
 function Player(x, y, r, spd, color, name) {
 	this.x = x;
@@ -67,31 +137,111 @@ function Player(x, y, r, spd, color, name) {
 	this.r = r;
 	this.color = color;
 	this.name = name;
+	this.angle = 0;
+
+	this.hooks = [new Hook(this), new Hook(this)];
+
+	this.chargeAttack = function() {
+
+	}
+
+	this.releaseAttack = function() {
+
+	}
+
+	this.hook = function(type) {
+		if(!this.hooks[type].shooted) {
+			var tx = camera.x + mouse.x;
+			var ty = camera.y + mouse.y;
+
+			this.hooks[type].x = this.x;
+			this.hooks[type].y = this.y;
+
+			this.hooks[type].target.x = tx;
+			this.hooks[type].target.y = ty;
+			this.hooks[type].shooted = true;
+			this.hooks[type].hooked = false;	
+		}
+	}
+
+	this.unhook = function(type) {
+		this.hooks[type].target.x = null;
+		this.hooks[type].target.y = null;
+		this.hooks[type].shooted = false;
+		this.hooks[type].hooked = false;
+		this.hooks[type].x = null;
+		this.hooks[type].y = null;
+	}
 
 	this.update = function() {
-		if(keys[keyBinds[0]]) {
-			this.velY--;
+		if(keys[keyBinds[0]]) {	// W
+			this.velY -= 0.2;
 		}
-		if(keys[keyBinds[1]]) {
-			this.velY++;
+		if(keys[keyBinds[1]]) {	// S
+			this.velY += 0.2;
 		}
-		if(keys[keyBinds[2]]) {
-			this.velX--;
+		if(keys[keyBinds[2]]) {	// A
+			this.velX -= 0.2;
 		}
-		if(keys[keyBinds[3]]) {
-			this.velX++;
+		if(keys[keyBinds[3]]) {	// D
+			this.velX += 0.2;
 		}
+
+		if(keys[keyBinds[0]] || keys[keyBinds[1]]) {
+			this.acceleratingY = true;
+		}
+		else {
+			this.acceleratingY = false;
+		}
+
+		if(keys[keyBinds[2]] || keys[keyBinds[3]]) {
+			this.acceleratingX = true;
+		}
+		else {
+			this.acceleratingX = false;
+		}
+
+		if(keys[keyBinds[4]]) {	// Q
+			this.hook(0);
+		}	
+		else {
+			this.unhook(0);
+		}
+		if(keys[keyBinds[5]]) {	// E
+			this.hook(1);
+		}	
+		else {
+			this.unhook(1);
+		}	
+
+		this.angle = Math.atan2(mouse.x - this.x, -(mouse.y - this.y));
 
 		this.x += this.velX;
 		this.y += this.velY;
 
-		this.velX *= 0.9;
-		this.velY *= 0.9;
+		if(!this.acceleratingX) {
+			this.velX *= 0.99;
+		}
+		if(!this.acceleratingY) {
+			this.velY *= 0.99;
+		}		
 
-		if(this.x < 0) this.x = 0;
-		if(this.x > world.w - this.r) this.x = world.w - this.r;
-		if(this.y < 0) this.y = 0;
-		if(this.y > world.h - this.r) this.y = world.h - this.r;
+		if(this.x < 0) {
+			this.x = 0;
+			this.velX = 0;
+		} 
+		if(this.x > world.w - this.r) {
+			this.x = world.w - this.r;
+			this.velX = 0;
+		}
+		if(this.y < 0) {
+			this.y = 0;
+			this.velY = 0;
+		}
+		if(this.y > world.h - this.r) {
+			this.y = world.h - this.r;
+			this.velY = 0;
+		}
 	}
 
 	this.render = function() {
@@ -107,11 +257,40 @@ function Player(x, y, r, spd, color, name) {
 	}
 }
 
+function Titan(x, y, r, spd) {
+	this.x = x;
+	this.y = y;
+	this.r = r;
+	this.spd = spd;
+	this.velX = 0;
+	this.velY = 0;
+	this.color = '#FF0000';
+	this.angle = 0;
+
+	this.update = function() {
+		this.angle = Math.atan2(this.x - this.target.x, this.y - this.target.y);
+
+		this.x += this.velX;
+		this.y += this.velY;
+	}
+
+	this.attack = function() {
+
+	}
+
+	this.render = function() {
+		ctx.beginPath();
+		ctx.arc(this.x - camera.x, this.y - camera.y, this.r, 0, 2*Math.PI);
+		ctx.fillStyle = this.color;
+		ctx.fill();
+	}
+}
+
 function Tree(x, y, r) {
 	this.x = x;
 	this.y = y;
 	this.r = r;
-	this.color = '#000000';
+	this.color = '#6a4611';
 
 	this.render = function() {
 		ctx.beginPath();
@@ -180,6 +359,7 @@ function World(w, h) {
 	this.h = h;
 
 	this.render = function() {
+		ctx.fillStyle = '#586d26';
 		if(camera.x < W) {
 			ctx.fillRect(-50 - player.r - camera.x, 0, 50, H);
 		}
@@ -228,6 +408,18 @@ function update() {
 	camera.update(player);
 	minimap.update();
 
+	for (var i = 0; i < player.hooks.length; i++) {
+		player.hooks[i].update();
+	}
+
+	for (var i = 0; i < trees.length; i++) {
+		for (var j = 0; j < player.hooks.length; j++) {
+			if(isColliding(trees[i], player.hooks[j])) {
+				player.hooks[j].hooked = true;
+			}
+		}
+	}
+
 	for(var i = 0; i < treesCount; i++) {
 		if(isColliding(player, trees[i])) {
 			mX = (player.x + trees[i].x) /2;
@@ -237,6 +429,9 @@ function update() {
 
 			player.x = mX + (player.r + trees[i].r) * 0.55 * (player.x - trees[i].x) / dist;
 			player.y = mY + (player.r + trees[i].r) * 0.55 * (player.y - trees[i].y) / dist;
+
+			player.velX *= 0.5;
+			player.velY *= 0.5;
 		}
 	}
 }
@@ -246,15 +441,19 @@ function render() {
 
 	world.render();
 
-	minimap.render();
-
 	player.render();
+
+	for (var i = 0; i < player.hooks.length; i++) {
+		player.hooks[i].render();
+	}
 
 	for(var i = 0; i < treesCount; i++) {
 		if(trees[i].x > camera.x && trees[i].x < camera.x + W && trees[i].y > camera.y && trees[i].y < camera.y + H) {
 			trees[i].render();
 		}
 	}
+
+	minimap.render();
 }
 
 function gameLoop() {
@@ -270,4 +469,23 @@ $(window).keydown(function(e) {
 
 $(window).keyup(function(e) {
 	keys[e.which] = false;
+});
+
+$(window).mousemove(function(e) {
+	mouse.x = e.pageX;
+	mouse.y = e.pageY;
+});
+
+$(window).mousedown(function(e) {
+	if(e.which == 1) {
+		mouse.left = true;
+	}
+	else if(e.which == 2) {
+		mouse.right = true;
+	}
+});
+
+$(window).mouseup(function(e) {
+	mouse.left = false;
+	mouse.right = false;
 });

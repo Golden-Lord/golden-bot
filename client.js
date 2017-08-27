@@ -1,4 +1,4 @@
-var keyBinds = [87, 83, 65, 68, 81, 69, 32, 13];
+var keyBinds = [87, 83, 65, 68, 81, 69, 16, 32, 13];
 var keys = [];
 var mouse = {
 	x: 0,
@@ -7,7 +7,9 @@ var mouse = {
 	right: false
 }
 
-var W, H, player, world, canvas, ctx, trees, treesCount, camera, minimap;
+var W, H, player, world, canvas, ctx, trees, treesCount, camera, minimap, friction, titans, titansCount, titanMinSpd, titanMaxSpd, titanMinSize, titanMaxSize;
+
+var lastUpdate = Date.now();
 
 function initGame() {
 	$('#name').hide();
@@ -63,10 +65,40 @@ function distance(a, b) {
 function distanceSq(a, b) {
 	return Math.abs((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
 }
-function normalize(a, length) {
-	var nx = a.x / length;
-	var ny = a.y / length;
+function length(a) {
+	return Math.sqrt(Math.abs((a.x * a.x) + (a.y * a.y)));
+}
+function normalize(a) {
+	var lng = length(a);
+	var nx = a.x / lng;
+	var ny = a.y / lng;
 	return {x: nx, y: ny};
+}
+
+function getForce(a, b) {
+	var magnitude = b.r / distance(a, b);
+	var direction = {
+		x: a.x - b.x,
+		y: a.y - b.y
+	}
+	var normDir = normalize(direction);
+	direction.x = normDir.x;
+	direction.y = normDir.y;
+	direction.x *= magnitude;
+	direction.y *= magnitude;
+	return direction;
+}
+function vectorField(a, b) {
+	var force = {
+		x: 0,
+		y: 0
+	}
+	for (var i = 0; i < b.length; i++) {
+		var obstacleForce = getForce(a, b[i]);
+		force.x += obstacleForce.x;
+		force.y += obstacleForce.y;
+	}
+	return force;
 }
 
 function Hook(owner) {
@@ -81,6 +113,7 @@ function Hook(owner) {
 	this.maxLength = 750;
 
 	this.speed = 0.5;
+	this.hookSpeed = 25;
 
 	this.shooted = false;
 	this.hooked = false;
@@ -91,10 +124,10 @@ function Hook(owner) {
 
 	this.update = function() {
 		if(this.shooted && !this.hooked) {
-			if(this.x < this.target.x) this.x += 10;
-			if(this.x > this.target.x) this.x -= 10;
-			if(this.y < this.target.y) this.y += 10;
-			if(this.y > this.target.y) this.y -= 10;		
+			if(this.x < this.target.x) this.x += this.hookSpeed;
+			if(this.x > this.target.x) this.x -= this.hookSpeed;
+			if(this.y < this.target.y) this.y += this.hookSpeed;
+			if(this.y > this.target.y) this.y -= this.hookSpeed;		
 
 			this.length	= distance(this.owner, this);
 			if(this.length > this.maxLength) {
@@ -113,6 +146,10 @@ function Hook(owner) {
 
 			this.owner.velX += vx;
 			this.owner.velY += vy;
+
+			if(this.owner.gas < 150) {
+				this.owner.jump(150);
+			}
 		}
 	}
 
@@ -128,16 +165,22 @@ function Hook(owner) {
 	}
 }
 
-function Player(x, y, r, spd, color, name) {
+function Player(x, y, r, speed, color, name, acceleration) {
 	this.x = x;
 	this.y = y;
 	this.velX = 0;
 	this.velY = 0;
-	this.spd = spd;
+	this.accX = 0;
+	this.accY = 0;
+	this.speed = speed;
+	this.acceleration = acceleration;
 	this.r = r;
 	this.color = color;
 	this.name = name;
 	this.angle = 0;
+	this.inAir = false;
+	this.gas = 0;
+	this.obstacles = [];
 
 	this.hooks = [new Hook(this), new Hook(this)];
 
@@ -173,18 +216,31 @@ function Player(x, y, r, spd, color, name) {
 		this.hooks[type].y = null;
 	}
 
-	this.update = function() {
+	this.jump = function(amm) {
+		this.gas += amm;
+		this.inAir = true;
+	}
+
+	this.update = function(dt) {
 		if(keys[keyBinds[0]]) {	// W
-			this.velY -= 0.2;
+			if(this.accY > -this.speed) {
+				this.accY -= this.acceleration;
+			}
 		}
 		if(keys[keyBinds[1]]) {	// S
-			this.velY += 0.2;
+			if(this.accY < this.speed) {
+				this.accY += this.acceleration;
+			}
 		}
 		if(keys[keyBinds[2]]) {	// A
-			this.velX -= 0.2;
+			if(this.accX > -this.speed) {
+				this.accX -= this.acceleration;
+			}
 		}
 		if(keys[keyBinds[3]]) {	// D
-			this.velX += 0.2;
+			if(this.accX < this.speed) {
+				this.accX += this.acceleration;
+			}
 		}
 
 		if(keys[keyBinds[0]] || keys[keyBinds[1]]) {
@@ -214,34 +270,79 @@ function Player(x, y, r, spd, color, name) {
 			this.unhook(1);
 		}	
 
-		this.angle = Math.atan2(mouse.x - this.x, -(mouse.y - this.y));
-
-		this.x += this.velX;
-		this.y += this.velY;
-
-		if(!this.acceleratingX) {
-			this.velX *= 0.99;
+		if(keys[keyBinds[6]]) {	// Shift
+			if(!this.inAir) {
+				this.jump(100);
+			}
 		}
-		if(!this.acceleratingY) {
-			this.velY *= 0.99;
+
+		if(this.inAir) {
+			this.gas--;
+		}
+
+		if(this.gas <= 0) {
+			this.inAir = false;
+			this.accX *= 0.5;
+			this.accY *= 0.5;
+		}
+
+		this.angle = Math.atan2(-(mouse.x - (this.x - camera.x)), -(mouse.y - (this.y - camera.y)));
+
+		this.velX += this.accX;
+		this.velY += this.accY;
+
+		var deltaFactor = (dt * 0.001) * (1000 / dt);
+
+		this.x += this.velX * deltaFactor;
+		this.y += this.velY * deltaFactor;
+
+		if(this.velX < 0) {
+			this.velX += friction;
+		}
+		if(this.velX > 0) {
+			this.velX -= friction;
+		}
+		if(this.velY < 0) {
+			this.velY += friction;
+		}
+		if(this.velY > 0) {
+			this.velY -= friction;
+		}	
+
+		if(this.accX < 0) {
+			this.accX += friction;
+		}
+		if(this.accX > 0) {
+			this.accX -= friction;
+		}
+		if(this.accY < 0) {
+			this.accY += friction;
+		}
+		if(this.accY > 0) {
+			this.accY -= friction;
 		}		
 
 		if(this.x < 0) {
 			this.x = 0;
 			this.velX = 0;
+			this.accX = 0;
 		} 
 		if(this.x > world.w - this.r) {
 			this.x = world.w - this.r;
 			this.velX = 0;
+			this.accX = 0;
 		}
 		if(this.y < 0) {
 			this.y = 0;
 			this.velY = 0;
+			this.accY = 0;
 		}
 		if(this.y > world.h - this.r) {
 			this.y = world.h - this.r;
 			this.velY = 0;
+			this.accY = 0;
 		}
+		this.obstacles = [];
 	}
 
 	this.render = function() {
@@ -264,14 +365,51 @@ function Titan(x, y, r, spd) {
 	this.spd = spd;
 	this.velX = 0;
 	this.velY = 0;
-	this.color = '#FF0000';
+	this.accX = 0;
+	this.accY = 0;
+	this.color = '#e2c25f';
+	this.strokeColor = '#000000';
+	this.strokeWidth = this.r / 10;
 	this.angle = 0;
+	this.target = {
+		x: this.x,
+		y: this.y
+	}
 
-	this.update = function() {
-		this.angle = Math.atan2(this.x - this.target.x, this.y - this.target.y);
+	this.update = function(dt) {
+		this.angle = Math.atan2(this.x - this.target.x, -(this.y - this.target.y));
+
+		var deltaFactor = (dt * 0.001) * (1000 / dt);
+
+		this.accX = this.spd * -Math.sin(this.angle) * deltaFactor;
+		this.accY = this.spd * Math.cos(this.angle) * deltaFactor;
+
+		this.velX += this.accX;
+		this.velY += this.accY;
 
 		this.x += this.velX;
 		this.y += this.velY;
+
+		if(this.x < 0) {
+			this.x = 0;
+			this.velX = 0;
+			this.accX = 0;
+		} 
+		if(this.x > world.w - this.r) {
+			this.x = world.w - this.r;
+			this.velX = 0;
+			this.accX = 0;
+		}
+		if(this.y < 0) {
+			this.y = 0;
+			this.velY = 0;
+			this.accY = 0;
+		}
+		if(this.y > world.h - this.r) {
+			this.y = world.h - this.r;
+			this.velY = 0;
+			this.accY = 0;
+		}		
 	}
 
 	this.attack = function() {
@@ -283,6 +421,9 @@ function Titan(x, y, r, spd) {
 		ctx.arc(this.x - camera.x, this.y - camera.y, this.r, 0, 2*Math.PI);
 		ctx.fillStyle = this.color;
 		ctx.fill();
+		ctx.strokeStyle = this.strokeColor;
+		ctx.lineWidth = this.strokeWidth;
+		ctx.stroke();
 	}
 }
 
@@ -322,18 +463,27 @@ function Minimap(w, xoff, yoff) {
 	this.y = H - this.h - this.yoff;
 
 	this.objects = [];
+	this.objects2 = [];
 
 	this.player = [this.x + player.x / (world.w / this.w), this.y + player.y / (world.h / this.h), player.r / 10];
 
-	this.generate = function(obj) {
+	this.generate = function(obj, obj2) {
 		for(var i = 0; i < obj.length; i++) {
 			this.objects.push([this.x + obj[i].x / (world.w / this.w), this.y + obj[i].y / (world.h / this.h), obj[i].r / 20]);
 		}
+		for(var i = 0; i < obj2.length; i++) {
+			this.objects2.push([this.x + obj2[i].x / (world.w / this.w), this.y + obj2[i].y / (world.h / this.h), obj2[i].r / 20]);
+		}
 	} 
 
-	this.update = function() {
-		this.player[0] = this.x + player.x / (world.w / this.w);
-		this.player[1] = this.y + player.y / (world.h / this.h);
+	this.update = function(p, t) {
+		this.player[0] = this.x + p.x / (world.w / this.w);
+		this.player[1] = this.y + p.y / (world.h / this.h);
+
+		for(var i = 0; i < t.length; i++) {
+			this.objects2[0] = this.x + t[i].x / (world.w / this.w);
+			this.objects2[1] = this.y + t[i].y / (world.h / this.h);
+		}
 	}
 
 	this.render = function() {
@@ -344,6 +494,13 @@ function Minimap(w, xoff, yoff) {
 			ctx.beginPath();
 			ctx.arc(this.objects[i][0], this.objects[i][1], this.objects[i][2], 0, 2*Math.PI);
 			ctx.fillStyle = '#000000';
+			ctx.fill();
+		}
+
+		for (var i = 0; i < this.objects2.length; i++) {
+			ctx.beginPath();
+			ctx.arc(this.objects[i][0], this.objects[i][1], this.objects[i][2], 0, 2*Math.PI);
+			ctx.fillStyle = '#FF0000';
 			ctx.fill();
 		}
 
@@ -381,12 +538,12 @@ function Game(c, n) {
 	canvas = c;
 	ctx = canvas.getContext("2d");
 
-	world = new World(10000, 7000);
+	world = new World(20000, 14000);
 
-	player = new Player(random(0, world.w), random(0, world.h), 20, 3, '#2135ED', n);
+	player = new Player(random(0, world.w), random(0, world.h), 20, 0.1, '#2135ED', n, 0.01);
 
 	trees = [];
-	treesCount = 150;
+	treesCount = 300;
 	var treeMinSize = 35;
 	var treeMaxSize = 75;
 
@@ -394,19 +551,39 @@ function Game(c, n) {
 		trees.push(new Tree(random(0, world.w), random(0, world.h), random(treeMinSize, treeMaxSize)));
 	}
 
+	titans = [];
+	titansCount = 5;
+	titanMinSpd = 1;
+	titanMaxSpd = 3;
+	titanMinSize = 25;
+	titanMaxSize = 85;
+
+	for (var i = 0; i < titansCount; i++) {
+		titans.push(new Titan(random(0, world.w), random(0, world.h), random(titanMinSize, titanMaxSize), random(titanMinSpd, titanMaxSpd)));
+	}
+	console.log(titans);
+
 	camera = new Camera(0, 0);
 
 	minimap = new Minimap(250, 50, 50);
 
-	minimap.generate(trees);
+	minimap.generate(trees, titans);
+
+	friction = 0.005;
 
 	gameLoop();
 }
 
-function update() {
-	player.update();
+function update(dt) {
+	player.update(dt);
 	camera.update(player);
-	minimap.update();
+
+	for (var i = 0; i < titans.length; i++) {
+		titans[i].update(dt);
+		titans[i].target = player;
+	}
+
+	minimap.update(player, titans);
 
 	for (var i = 0; i < player.hooks.length; i++) {
 		player.hooks[i].update();
@@ -420,18 +597,68 @@ function update() {
 		}
 	}
 
+	for (var i = 0; i < titans.length; i++) {
+		for (var j = 0; j < player.hooks.length; j++) {
+			if(isColliding(titans[i], player.hooks[j])) {
+				player.hooks[j].hooked = true;
+				player.hooks[j].x = titans[i].x;
+				player.hooks[j].y = titans[i].y;
+			}
+		}
+	}
+
+	for (var i = 0; i < titans.length; i++) {
+		for (var j = 0; j < titans.length; j++) {
+			if(i == j) continue;
+
+			if(titans[i], titans[j]) {
+				var obstacles = [titans[j]];
+				var collisionForce = vectorField(titans[i], obstacles);
+				titans[i].velX = collisionForce.x * 10;
+				titans[i].velY = collisionForce.y * 10;
+				titans[i].accX = 0.2;
+				titans[i].accY = 0.2;				
+			}
+		}
+	}
+
+	for (var i = 0; i < titans.length; i++) {
+		for (var j = 0; j < trees.length; j++) {
+			if(isColliding(titans[i], trees[j])) {
+				var obstacles = [trees[j]];				
+				var collisionForce = vectorField(titans[i], obstacles);
+				titans[i].velX = collisionForce.x * 10;
+				titans[i].velY = collisionForce.y * 10;
+				titans[i].accX = 0.2;
+				titans[i].accY = 0.2;
+			}
+		}
+	}
+
 	for(var i = 0; i < treesCount; i++) {
 		if(isColliding(player, trees[i])) {
-			mX = (player.x + trees[i].x) /2;
-			mY = (player.y + trees[i].y) /2;
+			var obstacles = [trees[i]];
+			var collisionForce = vectorField(player, obstacles);
+			player.velX = collisionForce.x;
+			player.velY = collisionForce.y;
+			player.accX *= 0.2;
+			player.accY *= 0.2;
+		}
+	}
 
-			var dist = distance(player, trees[i]);
+	for(var i = 0; i < titansCount; i++) {
+		if(isColliding(player, titans[i])) {
+			var obstacles = [titans[i]];
+			var collisionForce = vectorField(player, obstacles);
+			player.velX = collisionForce.x;
+			player.velY = collisionForce.y;
+			player.accX *= 0.2;
+			player.accY *= 0.2;			
 
-			player.x = mX + (player.r + trees[i].r) * 0.55 * (player.x - trees[i].x) / dist;
-			player.y = mY + (player.r + trees[i].r) * 0.55 * (player.y - trees[i].y) / dist;
-
-			player.velX *= 0.5;
-			player.velY *= 0.5;
+			titans[i].velX = collisionForce.x;
+			titans[i].velY = collisionForce.y;
+			titans[i].accX *= 0.2;
+			titans[i].accY *= 0.2;	
 		}
 	}
 }
@@ -441,23 +668,31 @@ function render() {
 
 	world.render();
 
-	player.render();
-
 	for (var i = 0; i < player.hooks.length; i++) {
 		player.hooks[i].render();
 	}
 
+	player.render();
+
 	for(var i = 0; i < treesCount; i++) {
-		if(trees[i].x > camera.x && trees[i].x < camera.x + W && trees[i].y > camera.y && trees[i].y < camera.y + H) {
+		if(trees[i].x + trees[i].r > camera.x && trees[i].x - trees[i].r < camera.x + W && trees[i].y + trees[i].r > camera.y && trees[i].y - trees[i].r < camera.y + H) {
 			trees[i].render();
 		}
+	}
+
+	for (var i = 0; i < titans.length; i++) {
+		titans[i].render();
 	}
 
 	minimap.render();
 }
 
 function gameLoop() {
-	update();
+	var now = Date.now();
+	var dt = now - lastUpdate;
+	lastUpdate = now;
+
+	update(dt);
 	render();
 
 	requestAnimationFrame(gameLoop);

@@ -8,19 +8,20 @@ var mouse = {
 }
 
 var W, H, player, world, canvas, ctx, trees, treesCount, camera, minimap, friction, titans, titansCount, titanMinSpd, titanMaxSpd, titanMinSize, titanMaxSize;
+var rebindKey = false;
+var rebindKeyIndex = 0;
 
 var lastUpdate = Date.now();
 
 function initGame() {
-	$('#name').hide();
-	$('#menu').hide();
-	$('#canvas').show();
-
-	$('body, html, canvas').css({
-		'position': 'absolute',
-		'padding': '0',
-		'margin': '0'
+	$('#menu, #logo').slideUp('slow', function() {
+		$('body, html, canvas').css({
+			'position': 'absolute',
+			'padding': '0',
+			'margin': '0'
+		});
 	});
+	$('canvas').fadeIn('fast');
 
 	var canvas = document.getElementById('canvas');
 	canvas.width = window.innerWidth;
@@ -29,21 +30,62 @@ function initGame() {
 	W = canvas.width;
 	H = canvas.height;
 
-	var name = $('#input-name').val();
+	var name = $('#name').val();
+
+	if(name == '') name = 'Unnamed';
 
 	Game(canvas, name);
 }
 
-function showOptions() {
-	$('#options').show();
-	$('#name').hide();
-	$('#menu').hide();
+function showSettings() {
+	$('#menu, #logo').slideUp('slow');
+	$('#settings').slideDown('slow');
 }
 
-function hideOptions() {
-	$('#options').hide();
-	$('#name').show();
-	$('#menu').show();
+function hideSettings() {
+	$('#settings').slideUp('slow');
+	$('#menu, #logo').slideDown('slow');
+}
+
+function replaceKey(n) {
+	$('#settings table tr:nth-child(' + n + ') td').css('background-color', '#85abc6');
+	$('#settings table tr:nth-child(' + n + ') button').css('background-color', '#85abc6');
+	rebindKeyIndex = n - 2;
+	rebindKey = true;
+}
+
+function replaceKeyStop(n, code) {
+	$('#settings table tr:nth-child(' + n + ') td').css('background-color', '#d8d8d8');
+	$('#settings table tr:nth-child(' + n + ') button').css('background-color', '#c0ced8');
+	rebindKeyIndex = 0;
+	rebindKey = false;
+
+	var keyName = '';
+	if(code == 32) {
+		keyName = 'Space';
+	}
+	else if(code == 13) {
+		keyName = 'Enter';
+	}
+	else if(code == 27) {
+		keyName = 'Escape';
+	}
+	else if(code == 17) {
+		keyName = 'Left Ctrl';
+	}
+	else if(code == 18) {
+		keyName = 'Left Alt';
+	}	
+	else if(code == 16) {
+		keyName = 'Left Shift';
+	}	
+	else if(code == 9) {
+		keyName = 'Tab';
+	}	
+	else {
+		keyName = String.fromCharCode(code);
+	}
+	$('#settings table tr:nth-child(' + n + ') td:first-child').html(keyName);
 }
 
 function random(min,max) {
@@ -282,8 +324,8 @@ function Player(x, y, r, speed, color, name, acceleration) {
 
 		if(this.gas <= 0) {
 			this.inAir = false;
-			this.accX *= 0.5;
-			this.accY *= 0.5;
+			this.accX *= 0.75;
+			this.accY *= 0.75;
 		}
 
 		this.angle = Math.atan2(-(mouse.x - (this.x - camera.x)), -(mouse.y - (this.y - camera.y)));
@@ -375,6 +417,11 @@ function Titan(x, y, r, spd) {
 		x: this.x,
 		y: this.y
 	}
+	this.range = {
+		x: 0,
+		y: 0,
+		r: 250
+	}
 
 	this.update = function(dt) {
 		this.angle = Math.atan2(this.x - this.target.x, -(this.y - this.target.y));
@@ -386,6 +433,9 @@ function Titan(x, y, r, spd) {
 
 		this.velX += this.accX;
 		this.velY += this.accY;
+
+		this.velX *= 0.5;
+		this.velY *= 0.5;
 
 		this.x += this.velX;
 		this.y += this.velY;
@@ -410,6 +460,8 @@ function Titan(x, y, r, spd) {
 			this.velY = 0;
 			this.accY = 0;
 		}		
+		this.range.x = this.x;
+		this.range.y = this.y;
 	}
 
 	this.attack = function() {
@@ -479,10 +531,9 @@ function Minimap(w, xoff, yoff) {
 	this.update = function(p, t) {
 		this.player[0] = this.x + p.x / (world.w / this.w);
 		this.player[1] = this.y + p.y / (world.h / this.h);
-
 		for(var i = 0; i < t.length; i++) {
-			this.objects2[0] = this.x + t[i].x / (world.w / this.w);
-			this.objects2[1] = this.y + t[i].y / (world.h / this.h);
+			this.objects2[i][0] = this.x + t[i].x / (world.w / this.w);
+			this.objects2[i][1] = this.y + t[i].y / (world.h / this.h);
 		}
 	}
 
@@ -540,7 +591,7 @@ function Game(c, n) {
 
 	world = new World(20000, 14000);
 
-	player = new Player(random(0, world.w), random(0, world.h), 20, 0.1, '#2135ED', n, 0.01);
+	player = new Player(random(0, world.w), random(0, world.h), 20, 0.05, '#2135ED', n, 0.01);
 
 	trees = [];
 	treesCount = 300;
@@ -611,13 +662,11 @@ function update(dt) {
 		for (var j = 0; j < titans.length; j++) {
 			if(i == j) continue;
 
-			if(titans[i], titans[j]) {
+			if(isColliding(titans[i], titans[j])) {
 				var obstacles = [titans[j]];
 				var collisionForce = vectorField(titans[i], obstacles);
 				titans[i].velX = collisionForce.x * 10;
-				titans[i].velY = collisionForce.y * 10;
-				titans[i].accX = 0.2;
-				titans[i].accY = 0.2;				
+				titans[i].velY = collisionForce.y * 10;			
 			}
 		}
 	}
@@ -630,8 +679,8 @@ function update(dt) {
 				titans[i].velX = collisionForce.x * 10;
 				titans[i].velY = collisionForce.y * 10;
 				titans[i].accX = 0.2;
-				titans[i].accY = 0.2;
-			}
+				titans[i].accY = 0.2;	
+			}		
 		}
 	}
 
@@ -650,15 +699,10 @@ function update(dt) {
 		if(isColliding(player, titans[i])) {
 			var obstacles = [titans[i]];
 			var collisionForce = vectorField(player, obstacles);
-			player.velX = collisionForce.x;
-			player.velY = collisionForce.y;
+			player.velX = collisionForce.x * 5;
+			player.velY = collisionForce.y * 5;
 			player.accX *= 0.2;
 			player.accY *= 0.2;			
-
-			titans[i].velX = collisionForce.x;
-			titans[i].velY = collisionForce.y;
-			titans[i].accX *= 0.2;
-			titans[i].accY *= 0.2;	
 		}
 	}
 }
@@ -700,6 +744,11 @@ function gameLoop() {
 
 $(window).keydown(function(e) {
 	keys[e.which] = true;
+
+	if(rebindKey) {
+		keyBinds[rebindKeyIndex] = e.which;
+		replaceKeyStop(rebindKeyIndex + 2, e.which);
+	}
 });
 
 $(window).keyup(function(e) {
@@ -721,6 +770,10 @@ $(window).mousedown(function(e) {
 });
 
 $(window).mouseup(function(e) {
-	mouse.left = false;
-	mouse.right = false;
+	if(e.which == 1) {
+		mouse.left = false;
+	}
+	else if(e.which == 2) {
+		mouse.right = false;
+	}
 });

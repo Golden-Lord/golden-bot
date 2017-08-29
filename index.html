@@ -6,17 +6,70 @@
 </head>
 <body>
 
-<div id="name">
-	<input type="text" name="username" placeholder="Name" id="input-name">
+<div id="logo">
+	<img src="logo.png">
 </div>
 
 <div id="menu">
-	<button id="playBut" onclick="initGame()">PLAY</button>
-	<button id="optionsBut" onclick="showOptions()">SETTINGS</button>
+	<input type="text" name="username" placeholder="Name" maxlength="20" id="name">
+	<button class="menuButton" onclick="initGame()">Play</button>
+	<button class="menuButton" onclick="showSettings()">Settings</button>
 </div>
 
-<div id="options">
-	<button id="closeOptions" onclick="hideOptions()">CLOSE</button>
+<div id="settings">
+	<table>
+		<tr>
+			<th>Current Key</th>
+			<th>Action</th>
+			<th>Replace Key</th>
+		</tr>
+		<tr>
+			<td>W</td>
+			<td>Move top</td>
+			<td><button class="settingsButton" onclick="replaceKey(2)">Choose key</button></td>
+		</tr>
+		<tr>
+			<td>A</td>
+			<td>Move left</td>
+			<td><button class="settingsButton" onclick="replaceKey(3)">Choose key</button></td>
+		</tr>
+		<tr>
+			<td>S</td>
+			<td>Move down</td>
+			<td><button class="settingsButton" onclick="replaceKey(4)">Choose key</button></td>
+		</tr>	
+		<tr>
+			<td>D</td>
+			<td>Move right</td>
+			<td><button class="settingsButton" onclick="replaceKey(5)">Choose key</button></td>
+		</tr>
+		<tr>
+			<td>Q</td>
+			<td>Left hook</td>
+			<td><button class="settingsButton" onclick="replaceKey(6)">Choose key</button></td>
+		</tr>		
+		<tr>
+			<td>E</td>
+			<td>Right hook</td>
+			<td><button class="settingsButton" onclick="replaceKey(7)">Choose key</button></td>
+		</tr>		
+		<tr>
+			<td>Space</td>
+			<td>Double hook</td>
+			<td><button class="settingsButton" onclick="replaceKey(8)">Choose key</button></td>
+		</tr>		
+		<tr>
+			<td>Left Shift</td>
+			<td>Jump/use gas</td>
+			<td><button class="settingsButton" onclick="replaceKey(9)">Choose key</button></td>
+		</tr>	
+		<tr>
+			<td>Enter</td>
+			<td>Open chat</td>
+			<td><button class="settingsButton" onclick="replaceKey(10)">Choose key</button></td>
+		</tr>			
+	</table>
+	<button class="menuButton" onclick="hideSettings()">Close</button>
 </div>
 
 <canvas id="canvas"></canvas>

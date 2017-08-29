@@ -188,10 +188,6 @@ function Hook(owner) {
 
 			this.owner.velX += vx;
 			this.owner.velY += vy;
-
-			if(this.owner.gas < 150) {
-				this.owner.jump(150);
-			}
 		}
 	}
 
@@ -220,18 +216,15 @@ function Player(x, y, r, speed, color, name, acceleration) {
 	this.color = color;
 	this.name = name;
 	this.angle = 0;
-	this.inAir = false;
-	this.gas = 0;
 	this.obstacles = [];
+	this.attacking = false;
 
 	this.hooks = [new Hook(this), new Hook(this)];
 
-	this.chargeAttack = function() {
-
-	}
-
-	this.releaseAttack = function() {
-
+	this.hitbox = {
+		x: 0,
+		y: 0,
+		r: this.r / 2
 	}
 
 	this.hook = function(type) {
@@ -256,11 +249,6 @@ function Player(x, y, r, speed, color, name, acceleration) {
 		this.hooks[type].hooked = false;
 		this.hooks[type].x = null;
 		this.hooks[type].y = null;
-	}
-
-	this.jump = function(amm) {
-		this.gas += amm;
-		this.inAir = true;
 	}
 
 	this.update = function(dt) {
@@ -312,23 +300,20 @@ function Player(x, y, r, speed, color, name, acceleration) {
 			this.unhook(1);
 		}	
 
-		if(keys[keyBinds[6]]) {	// Shift
-			if(!this.inAir) {
-				this.jump(100);
-			}
+		if(mouse.left) {
+			this.attacking = true;
+		}
+		else {
+			var THIS = this;
+			setTimeout(function() {
+				THIS.attacking = false;
+			}, 1000);
 		}
 
-		if(this.inAir) {
-			this.gas--;
-		}
+		this.angle = Math.atan2((this.x - mouse.x - camera.x), -(this.y - mouse.y - camera.y));
 
-		if(this.gas <= 0) {
-			this.inAir = false;
-			this.accX *= 0.75;
-			this.accY *= 0.75;
-		}
-
-		this.angle = Math.atan2(-(mouse.x - (this.x - camera.x)), -(mouse.y - (this.y - camera.y)));
+		this.hitbox.x = this.x + (this.r * -Math.sin(this.angle));
+		this.hitbox.y = this.y + (this.r * Math.cos(this.angle));
 
 		this.velX += this.accX;
 		this.velY += this.accY;
@@ -393,6 +378,14 @@ function Player(x, y, r, speed, color, name, acceleration) {
 		ctx.fillStyle = this.color;
 		ctx.fill();
 
+		ctx.beginPath();
+		ctx.arc(this.hitbox.x - camera.x, this.hitbox.y - camera.y, this.hitbox.r, 0, 2*Math.PI);
+		ctx.fillStyle = '#FF0000';
+		ctx.fill();
+		ctx.strokeStyle = '#000000';
+		ctx.lineWidth = 2;
+		ctx.stroke();		
+
 		ctx.font = '15px Arial';
 		ctx.fillStyle = '#000000';
 		ctx.textAlign = 'center';
@@ -400,7 +393,7 @@ function Player(x, y, r, speed, color, name, acceleration) {
 	}
 }
 
-function Titan(x, y, r, spd) {
+function Titan(x, y, r, spd, rspd) {
 	this.x = x;
 	this.y = y;
 	this.r = r;
@@ -413,6 +406,7 @@ function Titan(x, y, r, spd) {
 	this.strokeColor = '#000000';
 	this.strokeWidth = this.r / 10;
 	this.angle = 0;
+	this.rotateSpeed = rspd;
 	this.target = {
 		x: this.x,
 		y: this.y
@@ -420,11 +414,19 @@ function Titan(x, y, r, spd) {
 	this.range = {
 		x: 0,
 		y: 0,
-		r: 250
+		r: this.r * 5
+	}
+	this.hitbox = {
+		x: 0,
+		y: 0,
+		r: this.r / 2
 	}
 
 	this.update = function(dt) {
-		this.angle = Math.atan2(this.x - this.target.x, -(this.y - this.target.y));
+		this.angle += (Math.atan2(this.x - this.target.x, -(this.y - this.target.y)) - this.angle) / this.rotateSpeed;
+
+		this.hitbox.x = this.x + (this.r * Math.sin(this.angle));
+		this.hitbox.y = this.y + (this.r * -Math.cos(this.angle));
 
 		var deltaFactor = (dt * 0.001) * (1000 / dt);
 
@@ -476,6 +478,12 @@ function Titan(x, y, r, spd) {
 		ctx.strokeStyle = this.strokeColor;
 		ctx.lineWidth = this.strokeWidth;
 		ctx.stroke();
+
+		ctx.beginPath();
+		ctx.arc(this.hitbox.x - camera.x, this.hitbox.y - camera.y, this.hitbox.r, 0, 2*Math.PI);
+		ctx.fillStyle = '#FF0000';
+		ctx.fill();
+		ctx.stroke();
 	}
 }
 
@@ -517,23 +525,35 @@ function Minimap(w, xoff, yoff) {
 	this.objects = [];
 	this.objects2 = [];
 
-	this.player = [this.x + player.x / (world.w / this.w), this.y + player.y / (world.h / this.h), player.r / 10];
+	this.player = {
+		x: 0,
+		y: 0,
+		r: player.r / 10
+	}
 
 	this.generate = function(obj, obj2) {
 		for(var i = 0; i < obj.length; i++) {
-			this.objects.push([this.x + obj[i].x / (world.w / this.w), this.y + obj[i].y / (world.h / this.h), obj[i].r / 20]);
+			this.objects.push({
+				x: this.x + obj[i].x / (world.w / this.w), 
+				y: this.y + obj[i].y / (world.h / this.h),
+				r: obj[i].r / 20
+			});
 		}
 		for(var i = 0; i < obj2.length; i++) {
-			this.objects2.push([this.x + obj2[i].x / (world.w / this.w), this.y + obj2[i].y / (world.h / this.h), obj2[i].r / 20]);
+			this.objects2.push({
+				x: this.x + obj2[i].x / (world.w / this.w), 
+				y: this.y + obj2[i].y / (world.h / this.h),
+				r: obj2[i].r / 20
+			});
 		}
 	} 
 
 	this.update = function(p, t) {
-		this.player[0] = this.x + p.x / (world.w / this.w);
-		this.player[1] = this.y + p.y / (world.h / this.h);
+		this.player.x = this.x + p.x / (world.w / this.w);
+		this.player.y = this.y + p.y / (world.h / this.h);
 		for(var i = 0; i < t.length; i++) {
-			this.objects2[i][0] = this.x + t[i].x / (world.w / this.w);
-			this.objects2[i][1] = this.y + t[i].y / (world.h / this.h);
+			this.objects2[i].x = this.x + t[i].x / (world.w / this.w);
+			this.objects2[i].y = this.y + t[i].y / (world.h / this.h);
 		}
 	}
 
@@ -543,20 +563,20 @@ function Minimap(w, xoff, yoff) {
 
 		for (var i = 0; i < this.objects.length; i++) {
 			ctx.beginPath();
-			ctx.arc(this.objects[i][0], this.objects[i][1], this.objects[i][2], 0, 2*Math.PI);
+			ctx.arc(this.objects[i].x, this.objects[i].y, this.objects[i].r, 0, 2*Math.PI);
 			ctx.fillStyle = '#000000';
 			ctx.fill();
 		}
 
 		for (var i = 0; i < this.objects2.length; i++) {
 			ctx.beginPath();
-			ctx.arc(this.objects[i][0], this.objects[i][1], this.objects[i][2], 0, 2*Math.PI);
+			ctx.arc(this.objects2[i].x, this.objects2[i].y, this.objects2[i].r, 0, 2*Math.PI);
 			ctx.fillStyle = '#FF0000';
 			ctx.fill();
-		}
+		}		
 
 		ctx.beginPath();
-		ctx.arc(this.player[0], this.player[1], this.player[2], 0, 2*Math.PI);
+		ctx.arc(this.player.x, this.player.y, this.player.r, 0, 2*Math.PI);
 		ctx.fillStyle = '#FFFFFF';
 		ctx.fill();
 	}
@@ -591,7 +611,7 @@ function Game(c, n) {
 
 	world = new World(20000, 14000);
 
-	player = new Player(random(0, world.w), random(0, world.h), 20, 0.05, '#2135ED', n, 0.01);
+	player = new Player(random(0, world.w), random(0, world.h), 20, 0.02, '#2135ED', n, 0.01);
 
 	trees = [];
 	treesCount = 300;
@@ -610,7 +630,7 @@ function Game(c, n) {
 	titanMaxSize = 85;
 
 	for (var i = 0; i < titansCount; i++) {
-		titans.push(new Titan(random(0, world.w), random(0, world.h), random(titanMinSize, titanMaxSize), random(titanMinSpd, titanMaxSpd)));
+		titans.push(new Titan(random(0, world.w), random(0, world.h), random(titanMinSize, titanMaxSize), random(titanMinSpd, titanMaxSpd), 100));
 	}
 	console.log(titans);
 
@@ -650,6 +670,7 @@ function update(dt) {
 
 	for (var i = 0; i < titans.length; i++) {
 		for (var j = 0; j < player.hooks.length; j++) {
+			if(titans[i] == undefined) continue;
 			if(isColliding(titans[i], player.hooks[j])) {
 				player.hooks[j].hooked = true;
 				player.hooks[j].x = titans[i].x;
@@ -661,7 +682,7 @@ function update(dt) {
 	for (var i = 0; i < titans.length; i++) {
 		for (var j = 0; j < titans.length; j++) {
 			if(i == j) continue;
-
+			if(titans[i] == undefined || titans[j] == undefined) continue;
 			if(isColliding(titans[i], titans[j])) {
 				var obstacles = [titans[j]];
 				var collisionForce = vectorField(titans[i], obstacles);
@@ -673,6 +694,7 @@ function update(dt) {
 
 	for (var i = 0; i < titans.length; i++) {
 		for (var j = 0; j < trees.length; j++) {
+			if(titans[i] == undefined) continue;
 			if(isColliding(titans[i], trees[j])) {
 				var obstacles = [trees[j]];				
 				var collisionForce = vectorField(titans[i], obstacles);
@@ -696,13 +718,26 @@ function update(dt) {
 	}
 
 	for(var i = 0; i < titansCount; i++) {
+		if(titans[i] == undefined) continue;
 		if(isColliding(player, titans[i])) {
 			var obstacles = [titans[i]];
 			var collisionForce = vectorField(player, obstacles);
-			player.velX = collisionForce.x * 5;
-			player.velY = collisionForce.y * 5;
+			player.velX = collisionForce.x * 6;
+			player.velY = collisionForce.y * 6;
 			player.accX *= 0.2;
 			player.accY *= 0.2;			
+		}
+	}
+
+	if(player.attacking && !mouse.left) {
+		console.log('attack');
+		for(var i = 0; i < titansCount; i++) {
+			if(titans[i] == undefined) continue;
+			if(isColliding(player.hitbox, titans[i].hitbox)) {
+				titans.splice(i, 1);
+				console.log('killed');	
+				break;
+			}
 		}
 	}
 }

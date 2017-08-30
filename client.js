@@ -1,4 +1,4 @@
-var keyBinds = [87, 83, 65, 68, 81, 69, 16, 32, 13];
+var keyBinds = [87, 83, 65, 68, 81, 69, 32, 13];
 var keys = [];
 var mouse = {
 	x: 0,
@@ -186,6 +186,15 @@ function Hook(owner) {
 			var vx = this.speed * Math.sin(angle);
 			var vy = this.speed * -Math.cos(angle);
 
+			if(this.owner.reelingIn) {
+				vx *= 3;
+				vy *= 3;
+			}
+			else if(this.owner.reelingOut) {
+				vx *= -0.5;
+				vy *= -0.5;
+			}			
+
 			this.owner.velX += vx;
 			this.owner.velY += vy;
 		}
@@ -224,8 +233,11 @@ function Player(x, y, r, speed, color, name, acceleration) {
 	this.hitbox = {
 		x: 0,
 		y: 0,
-		r: this.r / 2
+		r: this.r
 	}
+
+	this.reelingIn = false;
+	this.reelingOut = false;
 
 	this.hook = function(type) {
 		if(!this.hooks[type].shooted) {
@@ -251,7 +263,74 @@ function Player(x, y, r, speed, color, name, acceleration) {
 		this.hooks[type].y = null;
 	}
 
-	this.update = function(dt) {
+	this.doubleHook = function(obj) {
+		var closestDis1 = 596000000;
+		var index1 = 0;
+		for (var i = 0; i < obj.length; i++) {
+			var dis = distanceSq(this, obj[i]);
+			if(dis < closestDis1) {
+				closestDis1 = dis;
+				index1 = i;
+			}
+		}
+		var closestDis2 = 596000000;
+		var index2 = 0;
+		for (var i = 0; i < obj.length; i++) {
+			if(i == index1) continue;
+			var dis = distanceSq(this, obj[i]);
+			if(dis < closestDis2) {
+				closestDis2 = dis;
+				index2 = i;
+			}
+		}
+
+		if(!this.hooks[0].shooted) {
+			var tx = obj[index1].x;
+			var ty = obj[index1].y;
+
+			this.hooks[0].x = this.x;
+			this.hooks[0].y = this.y;
+
+			this.hooks[0].target.x = tx;
+			this.hooks[0].target.y = ty;
+			this.hooks[0].shooted = true;
+			this.hooks[0].hooked = false;	
+		}
+		if(!this.hooks[1].shooted) {
+			var tx = obj[index2].x;
+			var ty = obj[index2].y;
+
+			this.hooks[1].x = this.x;
+			this.hooks[1].y = this.y;
+
+			this.hooks[1].target.x = tx;
+			this.hooks[1].target.y = ty;
+			this.hooks[1].shooted = true;
+			this.hooks[1].hooked = false;	
+		}
+	}
+
+	this.reelIn = function() {
+		if(!this.reelingIn) {
+			this.reelingIn = true;
+			var THIS = this;
+			setTimeout(function() {
+				THIS.reelingIn = false;
+			}, 100);
+		}
+	}
+
+	this.reelOut = function() {
+		if(!this.reelingOut) {
+			this.reelingOut = true;
+			var THIS = this;
+			setTimeout(function() {
+				THIS.reelingOut = false;
+			}, 100);
+		}
+	}
+
+	this.update = function(obj, dt) {
 		if(keys[keyBinds[0]]) {	// W
 			if(this.accY > -this.speed) {
 				this.accY -= this.acceleration;
@@ -291,14 +370,18 @@ function Player(x, y, r, speed, color, name, acceleration) {
 			this.hook(0);
 		}	
 		else {
-			this.unhook(0);
+			if(!keys[keyBinds[6]]) this.unhook(0);
 		}
 		if(keys[keyBinds[5]]) {	// E
 			this.hook(1);
 		}	
 		else {
-			this.unhook(1);
+			if(!keys[keyBinds[6]]) this.unhook(1);
 		}	
+
+		if(keys[keyBinds[6]]) {	// Space
+			this.doubleHook(obj);
+		}		
 
 		if(mouse.left) {
 			this.attacking = true;
@@ -312,8 +395,8 @@ function Player(x, y, r, speed, color, name, acceleration) {
 
 		this.angle = Math.atan2((this.x - mouse.x - camera.x), -(this.y - mouse.y - camera.y));
 
-		this.hitbox.x = this.x + (this.r * -Math.sin(this.angle));
-		this.hitbox.y = this.y + (this.r * Math.cos(this.angle));
+		this.hitbox.x = this.x + (this.r * 1.5 * -Math.sin(this.angle));
+		this.hitbox.y = this.y + (this.r * 1.5 * Math.cos(this.angle));
 
 		this.velX += this.accX;
 		this.velY += this.accY;
@@ -551,7 +634,7 @@ function Minimap(w, xoff, yoff) {
 	this.update = function(p, t) {
 		this.player.x = this.x + p.x / (world.w / this.w);
 		this.player.y = this.y + p.y / (world.h / this.h);
-		for(var i = 0; i < t.length; i++) {
+		for(var i = 0; i < t.length; i++) {			
 			this.objects2[i].x = this.x + t[i].x / (world.w / this.w);
 			this.objects2[i].y = this.y + t[i].y / (world.h / this.h);
 		}
@@ -646,7 +729,7 @@ function Game(c, n) {
 }
 
 function update(dt) {
-	player.update(dt);
+	player.update(trees, dt);
 	camera.update(player);
 
 	for (var i = 0; i < titans.length; i++) {
@@ -717,7 +800,7 @@ function update(dt) {
 		}
 	}
 
-	for(var i = 0; i < titansCount; i++) {
+	for(var i = 0; i < titans.length; i++) {
 		if(titans[i] == undefined) continue;
 		if(isColliding(player, titans[i])) {
 			var obstacles = [titans[i]];
@@ -730,12 +813,11 @@ function update(dt) {
 	}
 
 	if(player.attacking && !mouse.left) {
-		console.log('attack');
-		for(var i = 0; i < titansCount; i++) {
+		for(var i = 0; i < titans.length; i++) {
 			if(titans[i] == undefined) continue;
 			if(isColliding(player.hitbox, titans[i].hitbox)) {
 				titans.splice(i, 1);
-				console.log('killed');	
+				minimap.objects2.splice(i, 1);
 				break;
 			}
 		}
@@ -760,6 +842,7 @@ function render() {
 	}
 
 	for (var i = 0; i < titans.length; i++) {
+		if(titans[i] == undefined) continue;		
 		titans[i].render();
 	}
 
@@ -810,5 +893,14 @@ $(window).mouseup(function(e) {
 	}
 	else if(e.which == 2) {
 		mouse.right = false;
+	}
+});
+
+$(window).mousewheel(function(e) {
+	if(e.deltaY > 0) {
+		player.reelOut();
+	}
+	else if(e.deltaY < 0) {
+		player.reelIn();
 	}
 });

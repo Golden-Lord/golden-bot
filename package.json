@@ -1,0 +1,26 @@
+{
+  "name": "goldenbot",
+  "version": "1.0.0",
+  "description": "GoldenBot for discord",
+  "engines": {
+    "node": "6.11.1"
+  },
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^11.2.1"
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/heroku/node-js-getting-started"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "golden"
+  ],
+  "license": "ISC"
+}
